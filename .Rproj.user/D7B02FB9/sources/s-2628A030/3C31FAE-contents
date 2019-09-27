@@ -1,0 +1,334 @@
+#################################################################################
+## package name: LVSTAR
+## author: Yukai Yang
+## Statistiska Inst., Uppsala Universitet
+#################################################################################
+
+
+#' Create an object of the class LVSTAR.
+#'
+#' Create an object of the S3 class LVSTAR for later usage.
+#' This function should be run prior to the other functions in the package.
+#'
+#' It will return an object which you can use as an input for the other functions.
+#' It builds up the basic settings for the LVSTAR Modelling.
+#'
+#' The data stored in the returned object is in reference semantics,
+#' which means that the data will not be copied any more when dealing with the object.
+#' This is suitable for the cases that the data set is large
+#' but only a small subsample will be used for analysis later.
+#'
+#' It is not recommended to manually mutate the members in the returned object.
+#' The user should always use the functions offered by the package to mutate them.
+#'
+#' @param data a tibble of data. The \code{data} must be organized in such a way that each row is an observation and each column a variable.
+#' @param cnames the names of the variables, column names, \code{NULL} by default and the names will be produced automatrically with prefix X.
+#' @param rnames the names of the observations, row names, \code{NULL} by default and the names will be produced automatrically according to \code{start} and \code{freq}.
+#' @param freq the frequency describing the time series data, by default 1. If one unit of time is a year, then \code{freq=4} means quaterly data, for example.
+#' @param start a numeric vector of length 2 describing the start of the time, by default \code{c(1,1)}. Starting from February 2000 can be represented by a pair of \code{freq=12} and \code{start=c(2000,2)}, for example.
+#'
+#' @return An object of the class LVSTAR for later usage.
+#'
+#' The object is a list containing the following components:
+#' \item{data}{the environment for data storage}
+#' \item{size}{the sample size of the data}
+#' \item{width}{the total number of variables in the data}
+#' \item{freq}{the frequency describing the time series data}
+#' \item{cnames}{the names of the variables, column names}
+#' \item{rnames}{the names of the observations, row names}
+#' \item{taxis}{a 2-col matrix containing the detailed information about the time structure}
+#'
+#' @author Yukai Yang, \email{yukai.yang@@statistik.uu.se}
+#'
+#' @keywords initialization
+#'
+#' @examples
+#' star = newLVSTAR(sunspot,freq=1,start=c(1700,1))
+#' @export
+newLVSTAR <- function(data, cnames=NULL, rnames=NULL, freq=1, start=c(1,1))
+{
+  if(!is_tibble(data)) stop(simpleError("data should be a tibble!"))
+  if(freq < 1) stop(simpleError("freq is invalid!"))
+
+  ret = list(); class(ret) = "LVSTAR"
+
+  # some information of the data
+  ret$size = nrow(data)
+  ret$width = ncol(data)
+  ret$freq = freq
+
+  if(!is.null(cnames)){
+    if(length(cnames)!=ret$width)
+      stop(simpleError("The length of cnames does not match the data!"))
+    ret$cnames = as.character(cnames)
+  }else{
+    cnames = colnames(data)
+    if(!is.null(cnames)) ret$cnames=cnames
+    else ret$cnames=paste0('X',1:ret$width)
+  }
+
+  if(!is.null(rnames)){
+    if(length(rnames)!=ret$size)
+      stop(simpleError("The length of rnames does not match the data!"))
+    ret$rnames = rnames
+    ret$taxis = NULL
+  }else{
+    if(start[2]>0 && freq>0){
+      tmp = ret$size %/% freq +1
+      tmp = c(t(matrix(start[1]:(start[1]+tmp), tmp+1, freq)))
+      tmp = cbind(tmp, 1:freq)[start[2]:(start[2]+ret$size-1),]
+      ftmp<-function(vx) return(paste0(vx[1],':',vx[2]))
+      ret$rnames = apply(tmp, 1, ftmp)
+      ret$taxis = tmp; colnames(ret$taxis) = NULL
+    }else stop(simpleError("The freq is not positive!"))
+  }
+
+  # new environment data storage
+  ret$data = new.env()
+  ret$data$.data = data
+
+  # initialize some flags
+  ret$sc=F; ret$an=F; ret$pc=F
+
+  return(ret)
+}
+
+
+#' Set the dependent variables.
+#'
+#' Set the dependent variable in an object of the class LVSTAR and then return it.
+#' This function should be run prior to any testing, estimation or evaluation functions in the package.
+#'
+#' The function will do nothing for arguments in \code{...} like \code{list} or \code{data.frame}.
+#' They must be a sequence of vectors.
+#' They can be either numeric (column numbers) or strings (column names).
+#' The column nubmers and names of the added dependent variables will be saved in \code{nY}.
+#'
+#' In the \code{append=TRUE} mode,
+#' if there are repeated variables (columns or strings), they will be only counted once.
+#' And if the variables have already been in the dependent variable set,
+#' they will not be appended.
+#'
+#' In the \code{append=FALSE} mode, the current dependent variables will be removed,
+#' and a new set of dependent variables will be set.
+#'
+#' The function also updates the element \code{lES} by emptying it.
+#'
+#' It will return an object which you can use as an input for the other functions.
+#'
+#' @param use an object of the class LVSTAR.
+#' @param ... a sequence of vectors, column numbers or names, see Details.
+#' @param append a boolean with default value \code{TRUE} indicating whether to append to the existing dependant variables in \code{use}.
+#'
+#' @return An object of the class LVSTAR for later usage.
+#'
+#' The object is a list containing the following components with the new members:
+#' \item{Y}{a vector of column numbers of the dependent variables}
+#' \item{nY}{a vector of the names of the dependent variables}
+#' \item{lES}{an empty list with length equal to the number of the dependent variables}
+#'
+#' @author Yukai Yang, \email{yukai.yang@@statistik.uu.se}
+#'
+#' @keywords initialization
+#'
+#' @examples
+#' star = newLVSTAR(sunspot,freq=1,start=c(1700,1))
+#' star = star %>% setDependent(1)
+#'
+#' @export
+setDependent <- function(use, ..., append=TRUE)
+{
+  if(class(use)!="LVSTAR")
+    stop(simpleError("The argument 'use' is not an object of class 'LVSTAR'"))
+
+  if(!append){ use$Y = NULL; use$nY = NULL}
+  arg = list(...)
+
+  for(tmp in arg){
+    if(is.numeric(tmp)){
+      # remove the columns that do not exit
+      ttmp = tmp[tmp%in%(1:use$width)]
+    }else if(is.character(tmp)){
+      # remove the columns that do not exit
+      ttmp = match(tmp, use$cnames)
+      # remove NAs
+      ttmp = ttmp[ttmp%in%(1:use$width)]
+    }else next
+
+    # remove the columns in Y
+    ttmp = ttmp[!ttmp%in%use$Y]
+    if(length(ttmp)>0) use$Y = c(use$Y, ttmp)
+  }
+
+  if(is.null(use$Y)) use$nY = use$cnames[use$Y]
+
+  use$lES = list(); length(use$lES) = length(use$Y)
+
+  # remove the independent variables
+  return(setIndependent(use, append=F))
+}
+
+
+#' Add the lagged dependent variables to the indepdent variable set.
+#'
+#' This function offers a batch way to add the lagged dependent variables to the indepdent variable set in an object of the class LVSTAR.
+#'
+#' It will call \code{setIndependent} inside and set the independent variables
+#' which are the lagged dependent variables.
+#' Thus, the function will do nothing if there is no dependent variable in the object.
+#'
+#' The lag length \code{ik} is for the VAR model.
+#'
+#' The names of the lagged dependent variables in \code{nL} take the form
+#' "varname_L1", "varname_L2", etc, where "varname" is the variable's name in \code{nY}.
+#'
+#' It will return an object which you can use as an input for the other functions.
+#'
+#' @param use an object of the class LVSTAR.
+#' @param ik a scalar indicating the lag length and taking value in 0, 1, 2, ...
+#' @param append a boolean with default value \code{TRUE} indicating whether to append to the current independant variables in \code{use}.
+#'
+#' @return An object of the class LVSTAR for later usage.
+#'
+#' The object is a list containing the following components with the new members:
+#' \item{D}{a matrix with 2 columns, each row storing the column numbers and lag of the independent variable}
+#' \item{nD}{a vector of the names of the independent variables}
+#'
+#' @author Yukai Yang, \email{yukai.yang@@statistik.uu.se}
+#'
+#' @keywords initialization
+#'
+#' @examples
+#' star = newLVSTAR(sunspot,freq=1,start=c(1700,1))
+#' star = star %>% setDependent(1) %>% setLag(2)
+#' @export
+setLag <- function(use, ik, append=TRUE)
+{
+  if(class(use)!="LVSTAR")
+    stop(simpleError("The argument 'use' is not an object of class 'LVSTAR'"))
+
+  if(ik < 1) stop(simpleError("The lag length is invalid"))
+  if(is.null(use$Y)) stop(simpleError("No dependent variable"))
+
+  ik = floor(ik)
+  if(!append){ use$D = NULL; use$nD = NULL }
+
+  tmp = expand.grid(1:ik, use$Y)
+  for(iter in 1:nrow(tmp)){
+    use = setIndependent(use, tmp[iter,2], tmp[iter,1], append=TRUE)
+  }
+
+  # fill nL ?
+  #use$nL = NULL
+  #if(!is.null(use$Y)){
+  #  if(ik > 0) for(iter in 1:ik) use$nL = c(use$nL, paste0(use$nY,"_","L",iter))
+  #}
+
+  # set independent
+  #if(!is.null(use$nD)) use = setIndependent(use, append=TRUE)
+
+  return(clear(use))
+}
+
+
+#' Set the independent variables.
+#'
+#' Set the independent variables in an object of the class LVSTAR and then return it.
+#' This function should be run prior to any testing, estimation or evaluation functions in the package.
+#'
+#' Suppose that the independent variables should be the first column of the data tibble with lag 1
+#' and the second column of the data tibble with lag 0.
+#' The elements in \code{...} support the following patterns and they are equivalent:
+#'
+#' star %>% setIndependent( c(1,1), c(2,0) ) ## c(column, lag), c(column, lag)
+#'
+#' star %>% setIndependent( 1, 1, 2, 0 ) ## column, lag, column, lag
+#'
+#' star %>% setIndependent( 1, 1, 2 ) ## column, lag, column, (lag 0 can be supressed)
+#'
+#' star %>% setIndependent( 'SUN', 1, 'CONST', 0 ) ## column name, lag, column name, lag
+#'
+#' star %>% setIndependent( 'SUN', 1, 'CONST' ) ## column name, lag, column name, (lag 0 can be supressed)
+#'
+#' star %>% setIndependent( 'CONST', 'SUN', 1 ) ## column name, (lag 0 can be supressed as there will be no ambiguity), column name, lag
+#'
+#' The column nubmers and names of the independent variables will be stored.
+#'
+#' If there are repeated variables (columns or strings with same lag), they will be only stored once.
+#' In the \code{append=TRUE} mode,
+#' if the variables have already been in the existing independent variable set,
+#' they will not be appended.
+#'
+#' The \code{\link{setLag}} function can be replaced by this function due to the fact that
+#' the lagged dependent variables can be appended into independent variable set manually.
+#'
+#' Note that VAR model has the same independent variables for each equation.
+#'
+#' In the example code, you will see that the intercept will not be added automatically.
+#' Instead, you have to add a column of ones in the data tibble and set the column of ones as an independent variable.
+#'
+#' It will return an object which you will use as an input for the other functions.
+#'
+#' @param use an object of the class LVSTAR.
+#' @param ... a sequence of vectors, column numbers or names, see Details.
+#' @param append a boolean with default value \code{TRUE} indicating whether to append to the current independant variables in \code{use}.
+#'
+#' @return An object of the class LVSTAR for later usage.
+#'
+#' The object is a list containing the following components with the new members:
+#' \item{D}{a matrix with 2 columns, each row storing the column numbers and lag of the independent variable}
+#' \item{nD}{a vector of the names of the independent variables}
+#'
+#' @author Yukai Yang, \email{yukai.yang@@statistik.uu.se}
+#'
+#' @keywords initialization
+#'
+#' @examples
+#' star = newLVSTAR(sunspot,freq=1,start=c(1700,1))
+#' star = star %>% setDependent(1)
+#' star = star %>% setIndependent(2)
+#' @export
+setIndependent <- function(use, ..., append=TRUE)
+{
+  if(class(use)!="LVSTAR")
+    stop(simpleError("The argument 'use' is not an object of class 'LVSTAR'"))
+
+  if(!append){ use$D = NULL; use$nD = NULL}
+
+  ret = manage_arguments(list(...),use$width,use$cnames)
+  if(!is.null(ret)){
+    tmp = !ret$nD%in%use$nD
+    if(any(tmp)) {
+      use$D = rbind(use$D, ret$D[tmp,])
+      use$nD = c(use$nD, ret$nD[tmp])
+    }
+  }
+
+  #remo = NULL
+  #if(length(use$nD)>1) for(iter in 1:(length(use$nD)-1)){
+  #  tmp = match(use$nD[iter], use$nD[(iter+1):length(use$nD)])
+  #  if(is.na(tmp)) next
+  #  else remo = c(remo,tmp+iter)
+
+  #  if(!is.null(remo)){
+  #    use$nD = use$nD[-remo]; use$D = use$D[-remo,]
+  #  }
+  #}
+
+  remo = NULL
+  if(!is.null(use$nL)) for(iter in 1:length(use$nD)){
+    tmp = match(use$nD[iter], use$nL)
+    if(is.na(tmp)) next
+    else remo = c(remo,iter)
+
+    if(!is.null(remo)){
+      use$nD = use$nD[-remo]; use$D = use$D[-remo,]
+    }
+  }
+
+  if(length(use$D)==0) {
+    use$nD = NULL; use$D = NULL
+  }
+
+  return(return(clear(use)))
+}

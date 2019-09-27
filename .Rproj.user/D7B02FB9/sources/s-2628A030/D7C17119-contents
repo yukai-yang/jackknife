@@ -7,6 +7,8 @@ iN = 100
 mdl <- list(ar = c(0.8))
 vx <- arima.sim(model=mdl, iN)
 
+
+
 # for first order autocorrelation
 # dfunc vec 2, y_t and y_t-1
 dfunc <- function(yy, my, vy){
