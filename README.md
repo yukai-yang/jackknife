@@ -6,6 +6,10 @@ jackknife version 0.1.0 (RED JACK)
 The jackknife package implements jackknife method of estimating standard
 errors.
 
+The corresponding reference here
+
+[https://www.jstor.org/stable/pdf/2241719.pdf](The%20Jackknife%20and%20the%20Bootstrap%20for%20eneral%20Stationary%20Observations)
+
 How to install
 --------------
 

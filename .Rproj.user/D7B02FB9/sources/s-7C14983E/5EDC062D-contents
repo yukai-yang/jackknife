@@ -18,6 +18,10 @@ knitr::opts_chunk$set(
 
 The jackknife package implements jackknife method of estimating standard errors.
 
+The corresponding reference here
+
+[https://www.jstor.org/stable/pdf/2241719.pdf](The Jackknife and the Bootstrap for eneral Stationary Observations)
+
 
 ## How to install
 
