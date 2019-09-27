@@ -1,50 +1,56 @@
+---
+output:
+  md_document:
+    variant: markdown_github
+---
+
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-jackknife version 0.1.0 (RED JACK)
-==================================
-
-The jackknife package implements jackknife method of estimating standard
-errors.
-
-How to install
---------------
-
-You can install the development version from GitHub by running
-
-``` r
-devtools::install_github("yukai-yang/jackknife")
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "rmd_files/README-"
+)
 ```
 
-provided that the package “devtools” has been installed beforehand.
+# jackknife version 0.1.0 (RED JACK)
 
-After installing the package, you need to load (attach better say) it by
-running the code
+The jackknife package implements jackknife method of estimating standard errors.
 
-``` r
+
+## How to install
+
+You can install the development version from GitHub by running
+```{r install2, eval=F}
+devtools::install_github("yukai-yang/jackknife")
+```
+provided that the package "devtools" has been installed beforehand.
+
+
+
+
+After installing the package, you need to load (attach better say) it by running the code
+```{r attach}
 library(jackknife)
 ```
 
-You can take a look at all the available functions and data in the
-package
-
-``` r
+You can take a look at all the available functions and data in the package
+```{r contents}
 ls( grep("jackknife", search()) ) 
-#> [1] "jackknife"
 ```
 
-Example
--------
+## Example
 
 let us define the weights for deleting or downweighting the blocks:
 
-``` weight
+```{weight}
 vw1 = 1
 vw2 = c(0.25,0.75,1,0.75,0.25)
 ```
 
 Then we simulate data from the AR(1) model
-
-``` r{ar1}
+```r{ar1}
 # the AR(1) model
 iN = 100
 mdl <- list(ar = c(0.8))
@@ -53,10 +59,8 @@ vx <- arima.sim(model=mdl, iN)
 
 ### First order autocorrelation
 
-The first order autocorrelation is a linear statistic. We define the
-corresponding T and delta function below.
-
-``` r{auto}
+The first order autocorrelation is a linear statistic. We define the corresponding T and delta function below.
+```r{auto}
 # for first order autocorrelation
 # dfunc vec 2, y_t and y_t-1
 dfunc <- function(yy, my, vy) return(prod(yy - my)/vy)
@@ -65,23 +69,20 @@ tfunc <- function(rho, my, vy) return(rho)
 ```
 
 We do the jackknife for the first kind of weights:
-
-``` r{jack1}
+```r{jack1}
 # results
 ret = jackknife(as.vector(vx), tfunc, dfunc, im=2, vw=vw1, my=mean(vx), vy=var(vx))
 ret
 ```
 
 Then the second
-
-``` r{jack2}
+```r{jack2}
 ret = jackknife(as.vector(vx), tfunc, dfunc, im=2, vw=vw2, my=mean(vx), vy=var(vx))
 ret
 ```
 
 Compare them with the autocorrelation function.
-
-``` r{acf}
+```r{acf}
 # acf
 tmp = acf(vx)
 tmp
@@ -89,10 +90,8 @@ tmp
 
 ### OLS estimator
 
-The OLS estimator is also a linear statistic. We define the
-corresponding T and delta function below.
-
-``` r{para}
+The OLS estimator is also a linear statistic. We define the corresponding T and delta function below.
+```r{para}
 # for estimator of the AR(1)
 dfunc <- function(yy, inv_xx) return(c(inv_xx %*% rbind(1, yy[1]) * yy[2]))
 
@@ -100,21 +99,21 @@ tfunc <- function(rho, inv_xx) return(rho)
 ```
 
 We also need some additional arguments:
-
-``` r{inv}
+```r{inv}
 inv_xx = cbind(1,vx[1:(length(vx)-1)])
 inv_xx = chol2inv(chol(crossprod(inv_xx)/(length(vx)-1)))
 ```
 
 The results
-
-``` r{res1}
+```r{res1}
 # results
 ret = jackknife(as.vector(vx), tfunc, dfunc, im=2, vw=vw1, inv_xx=inv_xx)
 ret
 ```
 
-``` r{res2}
+```r{res2}
 ret = jackknife(as.vector(vx), tfunc, dfunc, im=2, vw=vw2, inv_xx=inv_xx)
 ret
 ```
+
+
