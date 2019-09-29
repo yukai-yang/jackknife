@@ -20,7 +20,7 @@ The jackknife package implements jackknife method of estimating standard errors.
 
 The corresponding reference here
 
-[The Jackknife and the Bootstrap for eneral Stationary Observations](https://www.jstor.org/stable/pdf/2241719.pdf)]
+[The Jackknife and the Bootstrap for eneral Stationary Observations](https://www.jstor.org/stable/pdf/2241719.pdf)
 
 
 ## How to install

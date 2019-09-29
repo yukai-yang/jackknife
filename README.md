@@ -9,7 +9,7 @@ errors.
 The corresponding reference here
 
 [The Jackknife and the Bootstrap for eneral Stationary
-Observations](https://www.jstor.org/stable/pdf/2241719.pdf)\]
+Observations](https://www.jstor.org/stable/pdf/2241719.pdf)
 
 How to install
 --------------
