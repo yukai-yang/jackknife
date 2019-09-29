@@ -8,7 +8,8 @@ errors.
 
 The corresponding reference here
 
-[https://www.jstor.org/stable/pdf/2241719.pdf](The%20Jackknife%20and%20the%20Bootstrap%20for%20eneral%20Stationary%20Observations)
+[The Jackknife and the Bootstrap for eneral Stationary
+Observations](https://www.jstor.org/stable/pdf/2241719.pdf)\]
 
 How to install
 --------------
